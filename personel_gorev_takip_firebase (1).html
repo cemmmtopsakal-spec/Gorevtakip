@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Personel Görev Takip</title>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, set, remove, update }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ▼▼▼ Firebase Console'dan kopyaladığınız config buraya ▼▼▼
+const firebaseConfig = {
+  apiKey:            "AIzaSyDWNN_a9GRFjsfSyIEzpZZysgKqj8ozv8s",
+  authDomain:        "sarten-gorev.firebaseapp.com",
+  databaseURL:       "https://sarten-gorev-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:         "sarten-gorev",
+  storageBucket:     "sarten-gorev.firebasestorage.app",
+  messagingSenderId: "253283256502",
+  appId:             "1:253283256502:web:16208ff8e451b2a5a83e17"
+};
+// ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+const TASKS_REF = ref(db, 'gorev_takip/tasks');
+
+window.addEventListener('DOMContentLoaded', () => {
+  // Gerçek zamanlı listener — her cihazdan değişiklik anlık yansır
+  onValue(TASKS_REF, (snapshot) => {
+    const data = snapshot.val();
+    window._fbTasks = data ? Object.values(data) : [];
+    if (typeof window._onFirebaseUpdate === 'function') window._onFirebaseUpdate();
+    setSyncDot(true);
+  }, () => setSyncDot(false));
+
+  window._fbSave = (tasks) => {
+    const obj = {};
+    tasks.forEach(t => { obj[t.id] = t; });
+    set(TASKS_REF, obj);
+  };
+  window._fbUpdate = (task) => update(ref(db, 'gorev_takip/tasks/' + task.id), task);
+  window._fbDelete = (id)   => remove(ref(db, 'gorev_takip/tasks/' + id));
+  window._fbReady = true;
+});
+
+function setSyncDot(ok) {
+  const el = document.getElementById('sync-dot');
+  if (el) { el.style.background = ok ? '#639922' : '#D4537E'; el.title = ok ? 'Senkronize ✓' : 'Bağlantı yok'; }
+}
+</script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f0efeb; --surface: #ffffff; --surface2: #e8e7e3;
+  --border: rgba(0,0,0,0.09); --border2: rgba(0,0,0,0.18);
+  --text: #1a1a18; --text2: #5f5e5a; --text3: #9a9994;
+  --r: 8px; --rl: 10px; --sh: 0 1px 3px rgba(0,0,0,0.07);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1a18; --surface: #262624; --surface2: #222220;
+    --border: rgba(255,255,255,0.08); --border2: rgba(255,255,255,0.16);
+    --text: #eeede7; --text2: #a0a09a; --text3: #686763;
+    --sh: 0 1px 3px rgba(0,0,0,0.3);
+  }
+}
+html, body { height: 100%; overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); }
+#app { display: flex; flex-direction: column; height: 100vh; }
+
+#topbar {
+  flex-shrink: 0; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; padding: 8px 16px;
+}
+#topbar h1 { font-size: 14px; font-weight: 600; }
+#add-btn { padding: 6px 14px; font-size: 12px; font-weight: 600; border: none; border-radius: var(--r); background: #378ADD; color: #fff; cursor: pointer; }
+#add-btn:hover { background: #2a6ab0; }
+#pdf-btn { padding: 6px 14px; font-size: 12px; font-weight: 600; border: 1px solid #378ADD; border-radius: var(--r); background: #378ADD; color: #fff; cursor: pointer; white-space: nowrap; }
+#pdf-btn:hover { background: #2a6ab0; border-color: #2a6ab0; }
+#pdf-btn:active { transform: scale(0.97); }
+.spacer { flex: 1; }
+#hdr-date { font-size: 11px; color: var(--text3); }
+
+#statsrow { flex-shrink: 0; display: flex; gap: 8px; padding: 7px 16px; }
+.scard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 4px 12px; display: flex; align-items: baseline; gap: 5px; }
+.scard strong { font-size: 15px; font-weight: 600; }
+.scard span { font-size: 11px; color: var(--text2); }
+
+#matrix-wrap { flex: 1; min-height: 0; padding: 0 16px 14px; display: flex; flex-direction: column; }
+#hdr-row { flex-shrink: 0; display: grid; grid-template-columns: 1fr 160px 160px 160px; gap: 5px; padding-bottom: 5px; }
+.hdr-task { font-size: 10px; font-weight: 700; color: var(--text3); padding: 6px 10px; text-transform: uppercase; letter-spacing: .06em; }
+.hdr-person { background: var(--surface2); border-radius: var(--rl); padding: 7px 10px; display: flex; align-items: center; gap: 7px; }
+.pavatar { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
+.pname { font-size: 12px; font-weight: 600; }
+.pfabs { font-size: 9px; color: var(--text3); }
+.ppct { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--text3); }
+
+#body-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+#body-scroll::-webkit-scrollbar { width: 3px; }
+#body-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+#body { display: flex; flex-direction: column; gap: 4px; }
+
+.trow { display: grid; grid-template-columns: 1fr 160px 160px 160px; gap: 5px; }
+
+.tcell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; display: flex; align-items: flex-start; gap: 7px; box-shadow: var(--sh); }
+.tnum { font-size: 10px; font-weight: 600; color: var(--text3); flex-shrink: 0; padding-top: 1px; }
+.tcontent { flex: 1; min-width: 0; }
+.ttitle { font-size: 12px; line-height: 1.45; word-break: break-word; }
+.tmeta { display: flex; gap: 5px; margin-top: 3px; flex-wrap: wrap; align-items: center; }
+.tfab { font-size: 9.5px; color: var(--text3); background: var(--surface2); border-radius: 4px; padding: 1px 5px; display: inline-flex; align-items: center; gap: 3px; }
+.tdate { font-size: 9.5px; color: var(--text3); }
+.tdel { font-size: 13px; color: var(--text3); cursor: pointer; flex-shrink: 0; padding: 0 2px; border-radius: 3px; line-height: 1; }
+.tdel:hover { color: #c0392b; background: #fcebeb; }
+
+.pcell { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--sh); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; gap: 3px; padding: 6px 4px; position: relative; min-height: 52px; transition: border-color .12s, background .12s; }
+.pcell:hover { border-color: var(--border2); }
+.pcell.st-ok   { background: #f0fae7; border-color: #aad98c; }
+.pcell.st-no   { background: #fdf0f0; border-color: #f0bcbc; }
+.pcell.st-wait { background: var(--surface); }
+.pcell.st-null { background: var(--surface2); cursor: default; opacity: .4; }
+@media (prefers-color-scheme: dark) {
+  .pcell.st-ok { background: #172912; border-color: #3a6b28; }
+  .pcell.st-no { background: #2e1212; border-color: #6b2828; }
+}
+.picon { font-size: 20px; line-height: 1; }
+.plbl  { font-size: 9px; color: var(--text3); }
+.hmenu { display: none; position: absolute; top: 3px; right: 3px; flex-direction: column; gap: 2px; z-index: 5; }
+.pcell:hover .hmenu { display: flex; }
+.hmb { font-size: 9px; padding: 2px 6px; border-radius: 4px; cursor: pointer; border: 1px solid var(--border2); background: var(--surface); color: var(--text2); white-space: nowrap; }
+.hmb:hover { background: var(--surface2); color: var(--text); }
+.empty-msg { text-align: center; padding: 48px; font-size: 13px; color: var(--text3); }
+
+/* ── MODAL ── */
+#modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 50; align-items: center; justify-content: center; }
+#modal-bg.on { display: flex; }
+#modal { background: var(--surface); border-radius: var(--rl); padding: 22px; width: 480px; max-width: 95vw; max-height: 88vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 14px; }
+#modal::-webkit-scrollbar { width: 4px; }
+#modal::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+#modal h2 { font-size: 14px; font-weight: 600; }
+.mrow { display: flex; flex-direction: column; gap: 6px; }
+.mlabel { font-size: 11px; color: var(--text2); }
+.mlabel-sub { font-size: 10px; color: var(--text3); font-weight: 400; }
+.mrow input, .mrow textarea { width: 100%; padding: 7px 10px; font-size: 12px; border: 1px solid var(--border2); border-radius: var(--r); background: var(--bg); color: var(--text); outline: none; font-family: inherit; }
+.mrow input:focus, .mrow textarea:focus { border-color: #378ADD; }
+.mrow textarea { resize: vertical; min-height: 60px; }
+
+/* Fabrika grid */
+.fab-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.fab-col { display: flex; flex-direction: column; gap: 5px; }
+.fab-owner-hd { font-size: 10px; font-weight: 700; letter-spacing: .05em; padding-bottom: 4px; border-bottom: 2px solid; margin-bottom: 1px; }
+.fab-item {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 8px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--bg);
+  transition: border-color .1s, background .1s; user-select: none;
+}
+.fab-item:hover { border-color: var(--border2); }
+.fab-item.sel { border-color: var(--border2); }
+.fab-item input[type=checkbox] { width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; }
+.fab-item span.fname { font-size: 11px; line-height: 1.3; }
+
+/* Tüm fab butonu */
+.all-fab-btn { font-size: 11px; padding: 5px 11px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border2); background: var(--surface2); color: var(--text2); align-self: flex-start; }
+.all-fab-btn:hover { color: var(--text); background: var(--border2); }
+
+/* Kişi chip'leri */
+.person-chips { display: flex; gap: 7px; flex-wrap: wrap; }
+.pchip {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; padding: 5px 12px; border-radius: 20px;
+  border: 1px solid var(--border2); background: var(--surface2); color: var(--text3);
+  cursor: pointer; transition: all .12s; user-select: none;
+}
+.pchip .pavt { width: 16px; height: 16px; border-radius: 50%; font-size: 8px; font-weight: 700; color: #fff; display: flex; align-items: center; justify-content: center; }
+.pchip.active { color: #fff; border-color: transparent; }
+
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+.modal-btns button { padding: 7px 18px; font-size: 12px; font-weight: 500; border: 1px solid var(--border2); border-radius: var(--r); cursor: pointer; }
+.mbtn-ok { background: #378ADD; color: #fff; border-color: #378ADD !important; }
+.mbtn-ok:hover { background: #2a6ab0; }
+.mbtn-cancel { background: transparent; color: var(--text2); }
+.mbtn-cancel:hover { background: var(--surface2); }
+
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(50px); background: var(--text); color: var(--bg); font-size: 12px; padding: 7px 16px; border-radius: var(--r); opacity: 0; transition: all .2s; pointer-events: none; z-index: 99; }
+#toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── PRINT ── */
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  html, body { height: auto !important; overflow: visible !important; background: #fff !important; color: #111 !important; font-size: 11px !important; }
+  #app { height: auto !important; display: block !important; }
+  #topbar, #toast, #modal-bg { display: none !important; }
+  #print-header { display: block !important; font-size: 16px; font-weight: 700; margin-bottom: 3px; color: #111; }
+  #print-meta { display: block !important; font-size: 10px; color: #666; margin-bottom: 10px; border-bottom: 1px solid #ddd; padding-bottom: 8px; }
+  #statsrow { display: flex !important; background: #fff !important; padding: 6px 0 10px !important; gap: 10px !important; }
+  .scard { background: #f5f5f5 !important; border: 1px solid #ccc !important; border-radius: 5px !important; padding: 3px 12px !important; }
+  .scard strong { font-size: 13px !important; color: #111 !important; }
+  .scard span { font-size: 10px !important; color: #555 !important; }
+  #matrix-wrap { flex: none !important; min-height: 0 !important; padding: 0 !important; display: block !important; overflow: visible !important; }
+  #hdr-row { display: grid !important; grid-template-columns: 1fr 130px 130px 130px !important; gap: 4px !important; margin-bottom: 4px !important; padding-bottom: 4px !important; border-bottom: 2px solid #ddd !important; }
+  .hdr-task { font-size: 9px !important; color: #666 !important; padding: 5px 8px !important; }
+  .hdr-person { background: #f0f0f0 !important; border-radius: 6px !important; padding: 5px 8px !important; gap: 5px !important; }
+  .pavatar { width: 20px !important; height: 20px !important; font-size: 9px !important; }
+  .pname { font-size: 11px !important; color: #111 !important; }
+  .pfabs { font-size: 8px !important; color: #666 !important; }
+  .ppct { font-size: 10px !important; color: #444 !important; }
+  #body-scroll { overflow: visible !important; min-height: 0 !important; }
+  #body { gap: 3px !important; }
+  .trow { display: grid !important; grid-template-columns: 1fr 130px 130px 130px !important; gap: 4px !important; break-inside: avoid; page-break-inside: avoid; }
+  .tcell { background: #fafafa !important; border: 1px solid #ddd !important; border-radius: 5px !important; padding: 6px 8px !important; box-shadow: none !important; gap: 5px !important; }
+  .tnum { font-size: 9px !important; color: #999 !important; }
+  .ttitle { font-size: 11px !important; color: #111 !important; }
+  .tfab { font-size: 8.5px !important; background: #eee !important; color: #555 !important; }
+  .tdate { font-size: 8.5px !important; color: #888 !important; }
+  .tdel { display: none !important; }
+  .pcell { border-radius: 5px !important; box-shadow: none !important; min-height: 40px !important; padding: 4px !important; }
+  .pcell.st-ok   { background: #eef9e2 !important; border-color: #9bd070 !important; }
+  .pcell.st-no   { background: #fdeaea !important; border-color: #f0aaaa !important; }
+  .pcell.st-wait { background: #f8f8f8 !important; border-color: #ddd !important; }
+  .pcell.st-null { background: #efefef !important; border-color: #e0e0e0 !important; opacity: 0.5 !important; }
+  .picon { font-size: 16px !important; }
+  .plbl { font-size: 8px !important; color: #666 !important; }
+  .hmenu { display: none !important; }
+  .empty-msg { color: #999 !important; font-size: 11px !important; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <h1>Personel Görev Takip</h1>
+    <button id="add-btn" onclick="openModal()">+ Yeni Görev</button>
+    <button id="pdf-btn" onclick="printReport()">🖨 PDF Rapor</button>
+    <div class="spacer"></div>
+    <span id="sync-dot" title="Bağlanıyor..." style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#BA7517;margin-right:4px;flex-shrink:0;vertical-align:middle"></span><span id="hdr-date"></span>
+  </div>
+  <div id="print-header" style="display:none"></div>
+  <div id="print-meta"   style="display:none"></div>
+  <div id="statsrow"></div>
+  <div id="matrix-wrap">
+    <div id="hdr-row"></div>
+    <div id="body-scroll"><div id="body"></div></div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="modal-bg" onclick="if(event.target===this)closeModal()">
+  <div id="modal">
+    <h2>Yeni Görev Ekle</h2>
+
+    <div class="mrow">
+      <label class="mlabel">Görev Açıklaması</label>
+      <textarea id="m-text" placeholder="Görev detayını yazın..."></textarea>
+    </div>
+
+    <div class="mrow">
+      <label class="mlabel">Tarih</label>
+      <input id="m-date" style="width:160px" placeholder="gg.aa.yyyy"/>
+    </div>
+
+    <div class="mrow">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px">
+        <label class="mlabel">Fabrikalar</label>
+        <span class="mlabel-sub">birden fazla seçebilirsiniz</span>
+        <button class="all-fab-btn" style="margin-left:auto" onclick="toggleAllFabs()">Tümünü seç / temizle</button>
+      </div>
+      <div class="fab-grid" id="fab-grid"></div>
+    </div>
+
+    <div class="mrow">
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:2px">
+        <label class="mlabel">Atanacak kişiler</label>
+        <span class="mlabel-sub">fabrikadan otomatik — elle değiştirebilirsiniz</span>
+      </div>
+      <div class="person-chips" id="person-chips"></div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="mbtn-cancel" onclick="closeModal()">İptal</button>
+      <button class="mbtn-ok" onclick="addTask()">Ekle</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+<div id="loading-msg" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:200;flex-direction:column;gap:12px">
+  <div style="font-size:22px">☁️</div>
+  <div style="font-size:14px;color:var(--text2)">Firebase'e bağlanılıyor...</div>
+  <div style="font-size:11px;color:var(--text3)">İlk açılışta birkaç saniye sürebilir</div>
+</div>
+
+<script>
+const PERSONS = [
+  { id:'omer',  name:'Ömer',  color:'#378ADD', init:'Ö', fabs:['Gıda Fabrikası','Easyopen','Delron'] },
+  { id:'burak', name:'Burak', color:'#D4537E', init:'B', fabs:['Servis Merkezi','Arge'] },
+  { id:'defne', name:'Defne', color:'#639922', init:'D', fabs:['Sarkap','Endpak','Plastik Fabrikası'] }
+];
+
+const FAB_OWNER = {};
+PERSONS.forEach(p => p.fabs.forEach(f => FAB_OWNER[f] = p.id));
+
+const ICONS  = { ok:'✅', no:'❌', wait:'⬜' };
+const LABELS = { ok:'Tamamlandı', no:'Yapılmadı', wait:'Bekliyor' };
+const CYCLE  = { wait:'ok', ok:'no', no:'wait' };
+
+let tasks = [];
+
+// Firebase'den gelen veriyi al ve ekranı güncelle
+window._onFirebaseUpdate = function() {
+  tasks = window._fbTasks || [];
+  render();
+  // Bağlandıktan sonra loading mesajını kaldır
+  const lm = document.getElementById('loading-msg');
+  if (lm) lm.remove();
+};
+
+function save() {
+  if (window._fbReady && window._fbSave) {
+    window._fbSave(tasks);
+  }
+}
+
+function td() {
+  const d = new Date();
+  return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
+}
+function toast(m) {
+  const el = document.getElementById('toast');
+  el.textContent = m; el.classList.add('on');
+  setTimeout(() => el.classList.remove('on'), 1800);
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Modal ── */
+function buildFabGrid() {
+  document.getElementById('fab-grid').innerHTML = PERSONS.map(p => `
+    <div class="fab-col">
+      <div class="fab-owner-hd" style="color:${p.color};border-color:${p.color}">${p.name}</div>
+      ${p.fabs.map(f => `
+        <label class="fab-item" id="fi-${CSS.escape(f)}">
+          <input type="checkbox" id="fc-${CSS.escape(f)}" onchange="onFabChange()">
+          <span class="fname">${esc(f)}</span>
+        </label>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function buildPersonChips() {
+  document.getElementById('person-chips').innerHTML = PERSONS.map(p => `
+    <div class="pchip" id="chip-${p.id}" onclick="toggleChip('${p.id}')">
+      <div class="pavt" style="background:${p.color}">${p.init}</div>
+      <span>${p.name}</span>
+    </div>
+  `).join('');
+}
+
+function getSelectedFabs() {
+  return PERSONS.flatMap(p => p.fabs).filter(f => {
+    const el = document.getElementById('fc-' + CSS.escape(f));
+    return el && el.checked;
+  });
+}
+
+function onFabChange() {
+  const sel = getSelectedFabs();
+  // fabrika item arka planı
+  PERSONS.forEach(p => p.fabs.forEach(f => {
+    const el = document.getElementById('fc-' + CSS.escape(f));
+    const wrap = document.getElementById('fi-' + CSS.escape(f));
+    if (wrap) {
+      wrap.classList.toggle('sel', el && el.checked);
+      wrap.style.borderColor = (el && el.checked) ? FAB_COLOR(f) : '';
+      wrap.style.background  = (el && el.checked) ? FAB_BG(f) : '';
+    }
+  }));
+
+  // hangi kişiler etkileniyor?
+  const owners = new Set(sel.map(f => FAB_OWNER[f]));
+
+  PERSONS.forEach(p => {
+    const chip = document.getElementById('chip-' + p.id);
+    if (!chip) return;
+    // hiç fabrika seçilmemişse herkesi aktif yap
+    const active = sel.length === 0 ? true : owners.has(p.id);
+    setChipActive(p, chip, active);
+  });
+}
+
+function FAB_COLOR(f) {
+  const p = PERSONS.find(x => x.fabs.includes(f));
+  return p ? p.color : '#888';
+}
+function FAB_BG(f) {
+  const p = PERSONS.find(x => x.fabs.includes(f));
+  if (!p) return '';
+  const hex = p.color.replace('#','');
+  const r = parseInt(hex.slice(0,2),16), g = parseInt(hex.slice(2,4),16), b = parseInt(hex.slice(4,6),16);
+  return `rgba(${r},${g},${b},0.08)`;
+}
+
+function setChipActive(p, chip, active) {
+  chip.classList.toggle('active', active);
+  chip.style.background   = active ? p.color : '';
+  chip.style.borderColor  = active ? p.color : '';
+  chip.style.color        = active ? '#fff'  : '';
+}
+
+function toggleChip(pid) {
+  const p = PERSONS.find(x => x.id === pid);
+  const chip = document.getElementById('chip-' + pid);
+  const nowActive = !chip.classList.contains('active');
+  setChipActive(p, chip, nowActive);
+}
+
+function toggleAllFabs() {
+  const allFabs = PERSONS.flatMap(p => p.fabs);
+  const anyChecked = allFabs.some(f => {
+    const el = document.getElementById('fc-' + CSS.escape(f));
+    return el && el.checked;
+  });
+  allFabs.forEach(f => {
+    const el = document.getElementById('fc-' + CSS.escape(f));
+    if (el) el.checked = !anyChecked;
+  });
+  onFabChange();
+}
+
+function openModal() {
+  buildFabGrid();
+  buildPersonChips();
+  document.getElementById('m-text').value = '';
+  document.getElementById('m-date').value = td();
+  // başlangıçta hiç fabrika seçili değil → herkes aktif
+  onFabChange();
+  document.getElementById('modal-bg').classList.add('on');
+  setTimeout(() => document.getElementById('m-text').focus(), 80);
+}
+function closeModal() { document.getElementById('modal-bg').classList.remove('on'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function addTask() {
+  const text = document.getElementById('m-text').value.trim();
+  if (!text) { document.getElementById('m-text').focus(); return; }
+
+  const selectedFabs = getSelectedFabs();
+  const fabLabel = selectedFabs.length === 0 ? 'Tüm fabrikalar' : selectedFabs.join(', ');
+
+  const statuses = {};
+  PERSONS.forEach(p => {
+    const chip = document.getElementById('chip-' + p.id);
+    statuses[p.id] = (chip && chip.classList.contains('active')) ? 'wait' : null;
+  });
+
+  if (Object.values(statuses).every(s => s === null)) {
+    toast('En az bir kişi seçmelisiniz'); return;
+  }
+
+  tasks.push({
+    id: Date.now() + '',
+    text,
+    fabs: selectedFabs,
+    fab: fabLabel,
+    date: document.getElementById('m-date').value.trim() || td(),
+    statuses
+  });
+  save(); closeModal(); render(); toast('Görev eklendi');
+}
+
+/* ── Görev işlemleri ── */
+function cycle(tid, pid) {
+  const t = tasks.find(x => x.id === tid);
+  if (!t || t.statuses[pid] === null) return;
+  t.statuses[pid] = CYCLE[t.statuses[pid]];
+  if (window._fbUpdate) window._fbUpdate(t); else save();
+  render();
+}
+function setState(tid, pid, s) {
+  const t = tasks.find(x => x.id === tid);
+  if (!t) return;
+  t.statuses[pid] = s;
+  if (window._fbUpdate) window._fbUpdate(t); else save();
+  render();
+}
+function delTask(id) {
+  if (!confirm('Görevi silmek istiyor musunuz?')) return;
+  tasks = tasks.filter(x => x.id !== id);
+  if (window._fbDelete) window._fbDelete(id);
+  render(); toast('Silindi');
+}
+
+/* ── PDF ── */
+function printReport() {
+  const now = new Date();
+  const dateStr = String(now.getDate()).padStart(2,'0') + '.' +
+    String(now.getMonth()+1).padStart(2,'0') + '.' + now.getFullYear() + '  ' +
+    String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+  const all = tasks.flatMap(t => PERSONS.map(p => t.statuses[p.id]).filter(s => s !== null));
+  const pct = all.length ? Math.round(all.filter(s => s==='ok').length / all.length * 100) : 0;
+  document.getElementById('print-header').textContent = 'Personel Görev Takip Raporu';
+  document.getElementById('print-meta').textContent =
+    'Rapor tarihi: ' + dateStr + '  |  Toplam görev: ' + tasks.length + '  |  Genel tamamlanma: %' + pct;
+  window.print();
+}
+
+/* ── Render ── */
+function render() {
+  const all = tasks.flatMap(t => PERSONS.map(p => t.statuses[p.id]).filter(s => s !== null));
+  document.getElementById('statsrow').innerHTML = `
+    <div class="scard"><strong>${tasks.length}</strong><span>Görev</span></div>
+    <div class="scard"><strong>${all.filter(s=>s==='ok').length}</strong><span>✅ Tamamlandı</span></div>
+    <div class="scard"><strong>${all.filter(s=>s==='wait').length}</strong><span>⬜ Bekliyor</span></div>
+    <div class="scard"><strong>${all.filter(s=>s==='no').length}</strong><span>❌ Yapılmadı</span></div>`;
+
+  document.getElementById('hdr-row').innerHTML =
+    `<div class="hdr-task">Görevler</div>` +
+    PERSONS.map(p => {
+      const pt = tasks.filter(t => t.statuses[p.id] !== null);
+      const ok = pt.filter(t => t.statuses[p.id] === 'ok').length;
+      const pct = pt.length ? Math.round(ok / pt.length * 100) : 0;
+      return `<div class="hdr-person">
+        <div class="pavatar" style="background:${p.color}">${p.init}</div>
+        <div><div class="pname">${p.name}</div><div class="pfabs">${p.fabs.join(' · ')}</div></div>
+        <span class="ppct">%${pct}</span>
+      </div>`;
+    }).join('');
+
+  if (!tasks.length) {
+    document.getElementById('body').innerHTML = `<div class="empty-msg">Henüz görev yok.<br>+ Yeni Görev butonuyla ekleyin.</div>`;
+    return;
+  }
+
+  const isDone = t => PERSONS.every(p => t.statuses[p.id] === null || t.statuses[p.id] === 'ok')
+                   && PERSONS.some(p => t.statuses[p.id] === 'ok');
+  const sorted = [...tasks].sort((a, b) => isDone(a) === isDone(b) ? 0 : isDone(a) ? 1 : -1);
+
+  document.getElementById('body').innerHTML = sorted.map((t, i) => {
+    const fabTags = (t.fabs && t.fabs.length)
+      ? t.fabs.map(f => {
+          const owner = PERSONS.find(p => p.fabs.includes(f));
+          const dot = owner
+            ? `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:${owner.color};flex-shrink:0"></span>`
+            : '';
+          return `<span class="tfab">${dot}${esc(f)}</span>`;
+        }).join('')
+      : `<span class="tfab">${esc(t.fab||'Tüm fabrikalar')}</span>`;
+
+    const taskCell = `<div class="tcell">
+      <span class="tnum">${i+1}</span>
+      <div class="tcontent">
+        <div class="ttitle">${esc(t.text)}</div>
+        <div class="tmeta">${fabTags}<span class="tdate">${esc(t.date)}</span></div>
+      </div>
+      <span class="tdel" onclick="delTask('${t.id}')" title="Sil">×</span>
+    </div>`;
+
+    const pCells = PERSONS.map(p => {
+      const s = t.statuses[p.id];
+      if (s === null) return `<div class="pcell st-null"><span class="picon">—</span></div>`;
+      const others = ['wait','ok','no'].filter(x => x !== s);
+      const menu = others.map(x =>
+        `<span class="hmb" onclick="setState('${t.id}','${p.id}','${x}');event.stopPropagation()">${ICONS[x]} ${LABELS[x]}</span>`
+      ).join('');
+      return `<div class="pcell st-${s}" onclick="cycle('${t.id}','${p.id}')">
+        <span class="picon">${ICONS[s]}</span>
+        <span class="plbl">${LABELS[s]}</span>
+        <div class="hmenu">${menu}</div>
+      </div>`;
+    }).join('');
+
+    return `<div class="trow">${taskCell}${pCells}</div>`;
+  }).join('');
+}
+
+document.getElementById('hdr-date').textContent =
+  new Date().toLocaleDateString('tr-TR', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+render();
+</script>
+</body>
+</html>
